@@ -1,63 +1,65 @@
 #!/usr/bin/env bash
 # ============================================================
-# SwarmAttack Framework — مثبّت موحّد (Termux أندرويد + Linux)
-# الاستخدام:  bash install.sh
+#  SwarmAttack Framework — مُثبِّت متعدد المنصات (Termux + Linux)
+#  الإصدار 2.0 المصحَّح:
+#    - إزالة libbrotli (غير موجودة في مستودع Termux)
+#    - تثبيت حزم بايثون الجاهزة من pkg (بلا بناء من المصدر)
+#    - تثبيت rust الصحيح من Termux كاحتياط للبناء
 # ============================================================
 set -euo pipefail
 
-PREFIX="${PREFIX:-}"
-IS_TERMUX=0
-if [[ "$PREFIX" == *"com.termux"* ]]; then
-    IS_TERMUX=1
-fi
+cd "$(dirname "$0")"
 
-echo "[*] البيئة المكتشفة: $([[ $IS_TERMUX -eq 1 ]] && echo 'Termux (أندرويد)' || echo 'Linux')"
+if [ -n "${PREFIX:-}" ] && echo "$PREFIX" | grep -q "com.termux"; then
+    echo "[*] البيئة المكتشفة: Termux (أندرويد)"
 
-# ------------------------------------------------------------ حزم النظام
-if [[ $IS_TERMUX -eq 1 ]]; then
-    echo "[*] تحديث Termux وتثبيت أدوات البناء..."
-    pkg update -y && pkg upgrade -y
-    pkg install -y python clang binutils pkg-config cmake ninja \
-                   libcurl openssl rust libffi zlib libbrotli
+    # --- تحديث Termux ---
+    pkg update -y || true
+    pkg upgrade -y || true
+
+    # --- أدوات البناء (احتياطية فقط — نادراً ما نحتاجها بعد الخطوة التالية) ---
+    pkg install -y clang binutils pkg-config libcurl openssl rust libffi zlib cmake ninja || true
+
+    # ===== الخطوة الحاسمة: حزم بايثون الجاهزة من مستودع Termux =====
+    # مبنية مسبقاً لـ Python 3.14 + aarch64 → لا يوجد أي بناء من المصدر
+    # (إن لم توجد إحداها في المستودع، pip سيتكفل بها تلقائياً)
+    for pkg in python-cryptography python-cffi python-pyyaml python-rich python-aiohttp; do
+        pkg install -y "$pkg" 2>/dev/null || echo "[!] الحزمة $pkg غير متوفرة في pkg — سيحاول pip تثبيتها"
+    done
+
+    # --- pip ---
+    pip install --upgrade pip || true
+    echo "[*] تثبيت المتطلبات عبر pip (بدون عزل البناء)..."
+    pip install --no-build-isolation -r requirements.txt || pip install -r requirements.txt
+
+    echo "[*] اكتمل التثبيت — تشغيل الاختبار الذاتي..."
+    python swarm.py --self-test
+
 else
-    echo "[*] تثبيت أدوات البناء على Linux (إن لزم)..."
+    echo "[*] البيئة المكتشفة: Linux (سطح مكتب / خادم)"
+
     if command -v apt-get >/dev/null 2>&1; then
-        apt-get update -y
-        apt-get install -y python3 python3-venv python3-pip build-essential \
-                           pkg-config libcurl4-openssl-dev libssl-dev \
-                           libffi-dev rustc cargo
+        sudo apt-get update -y
+        sudo apt-get install -y build-essential pkg-config python3-dev python3-venv \
+            libssl-dev libffi-dev libcurl4-openssl-dev rustc cargo
     elif command -v dnf >/dev/null 2>&1; then
-        dnf install -y python3 python3-pip gcc gcc-c++ make pkg-config \
-                       libcurl-devel openssl-devel libffi-devel rust cargo
+        sudo dnf groupinstall -y "Development Tools"
+        sudo dnf install -y pkgconf-pkg-config python3-devel openssl-devel libffi-devel \
+            libcurl-devel rust cargo
+    else
+        echo "[!] مدير حزم غير مدعوم (apt/dnf فقط). ثبّت الأدوات يدوياً ثم أعد التشغيل."
+        exit 1
     fi
-fi
 
-# ------------------------------------------------------------ Python >= 3.10
-PY=$(command -v python3 || command -v python)
-MAJOR=$("$PY" -c 'import sys; print(sys.version_info[0])')
-MINOR=$("$PY" -c 'import sys; print(sys.version_info[1])')
-if [[ "$MAJOR" -lt 3 || ( "$MAJOR" -eq 3 && "$MINOR" -lt 10 ) ]]; then
-    echo "[!] يتطلب Python 3.10+ — الموجود: $("$PY" --version)"
-    exit 1
-fi
-
-# ------------------------------------------------------------ البيئة الافتراضية (Linux فقط)
-if [[ $IS_TERMUX -eq 0 ]] && [[ ! -x .venv/bin/python ]]; then
-    echo "[*] إنشاء بيئة افتراضية .venv..."
-    "$PY" -m venv .venv
+    # --- بيئة افتراضية معزولة (على Linux فقط) ---
+    python3 -m venv .venv
+    # shellcheck disable=SC1091
     source .venv/bin/activate
-    PY="python"
+    pip install --upgrade pip
+
+    echo "[*] تثبيت المتطلبات..."
+    pip install --no-build-isolation -r requirements.txt || pip install -r requirements.txt
+
+    echo "[*] اكتمل التثبيت — تشغيل الاختبار الذاتي..."
+    python swarm.py --self-test
 fi
-
-echo "[*] ترقية pip..."
-"$PY" -m pip install --upgrade pip
-
-echo "[*] تثبيت المتطلبات الأساسية..."
-if ! "$PY" -m pip install -r requirements.txt; then
-    echo "[!] فشل التثبيت الأول — إعادة المحاولة بدون عزل البناء (مفيد على Termux)..."
-    "$PY" -m pip install --no-build-isolation -r requirements.txt
-fi
-
-echo "[*] فحص محرك JA4..."
-"$PY" swarm.py --self-test && \
-echo "[+] تم التثبيت بنجاح — شغّل: python swarm.py --target https://example.com"
