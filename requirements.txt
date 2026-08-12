@@ -1,27 +1,36 @@
 # ============================================================
-# SwarmAttack Framework — المتطلبات
-# المؤلف: Yassine (Camorro)
-# يتطلب: Python >= 3.10  (كود المشروع يستخدم أنماط X | Y)
-# التثبيت:  bash install.sh   (يكتشف Termux/Linux تلقائياً)
-# أو يدوياً: pip install -r requirements.txt
-# ============================================================
+#  SwarmAttack Framework — المتطلبات (متعدد المنصات)
+# ------------------------------------------------------------
+#  Linux : pip install -r requirements.txt
+#  Termux: ثبّت الحزم الجاهزة أولاً (install.sh يفعلها تلقائياً):
+#          pkg install python-cryptography python-cffi python-pyyaml
+#                   python-rich python-aiohttp
+#          ثم: pip install --no-build-isolation -r requirements.txt
 #
-# ملاحظة Termux (أندرويد): ثبّت حزم النظام أولاً ثم أعد المحاولة:
-#   pkg update -y && pkg upgrade -y
-#   pkg install -y python clang binutils pkg-config cmake ninja \
-#                  libcurl openssl rust libffi zlib libbrotli
-# الحزم أدناه كلها متوافقة مع Termux: تُبنى من المصدر تلقائياً
-# عندما لا تتوفر عجلة جاهزة لمعمارية aarch64/bionic.
+#  تحذير: لا تحاول بناء cryptography من المصدر على Termux —
+#         يتطلب maturin وهدف rustup لأندرويد غير مدعوم.
+#         استخدم pkg install python-cryptography دائماً.
+# ============================================================
 
-# ---------- أساسية (ضرورية لتشغيل الأداة) ----------
-curl_cffi>=0.7.2            # تقليد بصمة TLS كاملة (JA3/JA4/H2) — النقل الفعلي عبر AsyncSession
-aiohttp>=3.9.5              # فحوص صحة البروكسيات غير المتزامنة (proxy_mesh.health_check_all)
-cryptography>=42.0.8        # AES-256-GCM / ChaCha20-Poly1305 / Argon2id (CryptoVault)
-aiosqlite>=0.20.0           # قاعدة حالة الهجوم (SQLite غير متزامن — state_manager)
-PyYAML>=6.0.1               # تحميل config/attack_policies.yaml
-rich>=13.7.1                # لوحة التحكم الحية (Dashboard — تُعطَّل تلقائياً إن غابت)
+# قلب الأداة — اتصالات TLS ومحاكاة بصمة المتصفح (له wheel جاهز لأندرويد)
+curl_cffi>=0.7.2
 
-# ---------- اختيارية (ميزات إضافية فقط — لا تُثبَّت افتراضياً على Termux) ----------
-# scapy>=2.5.0              # فقط لـ --capture-profile (Termux: pkg install python-scapy + root)
-# playwright>=1.45.0        # فقط لفحص DOM XSS (لا يدعم Termux — الكود يتجاهله تلقائياً)
-# aiohttp-socks>=0.9.0      # فقط إذا أضفت دعم SOCKS4/5 لفحص الصحة (الكود الحالي يستخدم aiohttp مباشرة)
+# نقل غير متزامن (يُثبَّت عبر pkg على Termux)
+aiohttp>=3.9.5
+
+# التشفير AESGCM/ChaCha20Poly1305 (عبر pkg على Termux، وpip على Linux)
+cryptography>=42.0.8
+
+# قاعدة بيانات غير متزامنة (بايثون خالص — يعمل في كل مكان)
+aiosqlite>=0.20.0
+
+# قراءة config/attack_policies.yaml
+PyYAML>=6.0.1
+
+# واجهة الطرفية (جداول/تقدم)
+rich>=13.7.1
+
+# ===== اختيارية — علّق عليها إن لم تكن بحاجتها =====
+# scapy>=2.5.0          # --capture-profile (Linux: pip install scapy / Termux: pkg install python-scapy + root)
+# playwright>=1.44.0    # فحص DOM-XSS (لا يعمل على Termux — الكود يتجاهله تلقائياً)
+# aiohttp-socks>=0.8.4  # دعم SOCKS5 في proxy_mesh
